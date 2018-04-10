@@ -14,9 +14,11 @@ import Wolf.Data
 import Wolf.Cli.OptParse
 import Wolf.Cli.Utils
 
+import Cautious.CautiousT
+
 export :: (MonadIO m, MonadReader Settings m) => m ()
 export =
     runData $
     withInitCheck_ $ do
-        e <- exportRepo
+        e <- runCautiousT exportRepo
         liftIO . LB8.putStrLn $ encodePretty e

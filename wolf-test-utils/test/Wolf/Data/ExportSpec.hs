@@ -11,6 +11,9 @@ import Wolf.Data.Gen ()
 
 import Wolf.Data.TestUtils
 
+import Cautious.Cautious
+import Cautious.CautiousT
+
 spec :: Spec
 spec =
     withDataSetsGen $
@@ -20,8 +23,8 @@ spec =
                 e <-
                     flip runReaderT sets $ do
                         ensureClearRepository
-                        exportRepo
-                e `shouldBe` Nothing
+                        runCautiousT exportRepo
+                e `shouldBe` CautiousError NoInitFile
         let roundtrip func name =
                 it ("roundtrips the " ++ name) $ \gen ->
                     forAll gen $ \sets ->
@@ -30,8 +33,9 @@ spec =
                                 runData sets $ do
                                     ensureClearRepository
                                     importRepo repo
-                                    exportRepo
-                            (func <$> repo') `shouldBe` Just (func repo)
+                                    runCautiousT exportRepo
+                            (func <$> repo') `shouldBe`
+                                CautiousWarning mempty (func repo)
         -- Re-activate these if necessary for debugging
         -- roundtrip repoInitData "init data"
         -- roundtrip repoPersonIndex "person index"

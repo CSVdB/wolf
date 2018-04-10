@@ -14,6 +14,9 @@ import Wolf.Data
 
 import Wolf.Data.Gen ()
 
+import Cautious.Cautious
+import Cautious.CautiousT
+
 runData :: Monad m => DataSettings -> ReaderT DataSettings m a -> m a
 runData = flip runReaderT
 
@@ -34,12 +37,10 @@ ensureClearRepository = do
 
 assertRepoValid :: DataSettings -> IO ()
 assertRepoValid sets = do
-    mr <- runData sets exportRepo
+    mr <- runData sets $ runCautiousT exportRepo
     case mr of
-        Nothing ->
-            expectationFailure
-                "Failed to assert that the repo was valid: No repo found."
-        Just r -> shouldBeValid r
+        CautiousError r -> expectationFailure $ prettyShowErr r
+        CautiousWarning w _ -> w `shouldBe` mempty
 
 forAllSets :: Testable t => (DataSettings -> t) -> Gen DataSettings -> Property
 forAllSets func gen = forAll gen func

@@ -1,4 +1,4 @@
-module Wolf.Cli.Prompt
+module Wolf.Data.Prompt
     ( promptYesNo
     , YesNo(..)
     , promptRawString
