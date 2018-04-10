@@ -72,6 +72,7 @@ module Wolf.Data
     , createNewNote
     , createNewNoteUuid
     , readNote
+    , readNoteCautious
     , writeNote
     -- * Suggestions
     , SuggestionType(..)
@@ -105,8 +106,16 @@ module Wolf.Data
     , exportRepo
     , importRepo
     , cleanupRepo
+    , CautiousExport
+    , prettyShowExportWarning
+    , prettyShowExportError
+    , ExportWarning
+    , ExportProblem(..)
+    , ExportError(..)
+    , getPersonNoteIndexCautious
     ) where
 
+import Wolf.Data.Cautious
 import Wolf.Data.Cleanup
 import Wolf.Data.Entry
 import Wolf.Data.Export
