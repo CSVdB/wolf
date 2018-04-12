@@ -19,5 +19,4 @@ extra-deps:
   subdirs:
     - typed-uuid
     - genvalidity-typed-uuid
-
 resolver: lts-10.2
