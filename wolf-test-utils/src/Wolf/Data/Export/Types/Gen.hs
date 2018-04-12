@@ -3,7 +3,7 @@
 
 module Wolf.Data.Export.Types.Gen where
 
-import Import
+import Import hiding (Result)
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -61,3 +61,20 @@ instance GenValid Repo where
             fmap M.fromList $ forM noteUuids $ \uuid -> (,) uuid <$> genValid
         repoSuggestions <- genValid
         pure Repo {..}
+
+instance (GenUnchecked a, GenUnchecked w, GenUnchecked e) =>
+         GenUnchecked (Result w e a)
+
+instance (GenValid a, GenValid w, GenValid e) => GenValid (Result w e a)
+
+instance Validity Warn
+
+instance GenUnchecked Warn
+
+instance GenValid Warn
+
+instance Validity Err
+
+instance GenUnchecked Err
+
+instance GenValid Err

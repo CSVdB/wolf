@@ -80,8 +80,7 @@ personEntryWidget now pe = go $ personEntryProperties pe
             , txt "   ("
             , withAttr
                   entryLastUpdatedAttr
-                  (txt
-                       (formatMomentNicely
+                  (txt (formatMomentNicely
                             now
                             personPropertyValueLastUpdatedTimestamp))
             , txt ")"
