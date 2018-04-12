@@ -7,9 +7,11 @@ module Wolf.Data.Export.Types
     , Result(..)
     , ResultS(..)
     , Exporter(..)
+    , Warn(..)
+    , Err(..)
     ) where
 
-import Import
+import Import hiding (Result)
 
 import Data.Aeson hiding (Result)
 import qualified Data.Map as M
@@ -94,10 +96,16 @@ instance ToJSON Repo where
             , "suggestions" .= repoSuggestions
             ]
 
-type Warning = String
+data Warn =
+    Warn
+    deriving (Show, Eq, Generic)
 
-type Error = String
+instance Monoid Warn
 
-type ResultS = Result Warning Error
+data Err =
+    Err
+    deriving (Show, Eq, Generic)
+
+type ResultS = Result Warn Err
 
 type Exporter = ResultS Repo
