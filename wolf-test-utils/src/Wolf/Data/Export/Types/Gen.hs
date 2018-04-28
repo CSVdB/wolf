@@ -21,8 +21,6 @@ import Wolf.Data.NoteIndex.Types.Gen
 import Wolf.Data.People.Types.Gen ()
 import Wolf.Data.Suggestion.Types.Gen ()
 
-import Cautious.Cautious
-
 instance GenUnchecked Repo
 
 instance GenValid Repo where
@@ -33,15 +31,22 @@ instance GenValid Repo where
         -- The person index consists of (some) people from the global index
         -- and some occur multiple times.
         repoPersonIndex <-
-            let gen ix puuid = do
-                    a <- genValid
-                    go (addIndexEntry a puuid ix) puuid
-                go ix puuid = frequency [(3, gen ix puuid), (1, pure ix)]
+            let go ix puuid = do
+                    b <- frequency [(3, pure False), (1, pure True)]
+                    if b
+                        then pure ix
+                        else do
+                            a <- genValid
+                            go (addIndexEntry a puuid ix) puuid
             in foldM go newIndex eps
         -- For some people, make a person entry.
         repoPersonEntries <-
             fmap (M.fromList . catMaybes) $
-            forM eps $ \p -> oneof [pure Nothing, (Just . (,) p) <$> genValid]
+            forM eps $ \p -> do
+                b <- genValid
+                if b
+                    then (Just . (,) p) <$> genValid
+                    else pure Nothing
         -- Any global note index.
         repoNoteIndex <- genValid
         let noteUuids = S.toList $ noteIndexSet repoNoteIndex
@@ -56,7 +61,7 @@ instance GenValid Repo where
         -- For each noteuuid, make a note.
         repoNotesWithWrongPeople <-
             fmap M.fromList $
-            forM noteUuids $ \nu -> (,) nu . rmRelevantPeople <$> genValid
+            forM noteUuids $ \nu -> (,) nu . removeRelevantPeople <$> genValid
         let repoNotes =
                 foldl'
                     updateNotes
@@ -65,8 +70,8 @@ instance GenValid Repo where
         repoSuggestions <- genValid
         pure Repo {..}
 
-rmRelevantPeople :: Note -> Note
-rmRelevantPeople note = note {noteRelevantPeople = S.empty}
+removeRelevantPeople :: Note -> Note
+removeRelevantPeople note = note {noteRelevantPeople = S.empty}
 
 updateNotes :: Map NoteUuid Note -> (PersonUuid, NoteIndex) -> Map NoteUuid Note
 updateNotes noteMap (pu, ni) =
@@ -82,19 +87,14 @@ addRelevantPerson pu noteMap nu =
         nu
         noteMap
 
-instance (GenUnchecked a, GenUnchecked w, GenUnchecked e) =>
-         GenUnchecked (Cautious w e a)
+instance GenUnchecked ExportProblem
 
-instance (GenValid a, GenValid w, GenValid e) => GenValid (Cautious w e a)
+instance GenValid ExportProblem
 
-instance Validity Problem
+instance GenUnchecked InvalidRepoMessage
 
-instance GenUnchecked Problem
+instance GenValid InvalidRepoMessage
 
-instance GenValid Problem
+instance GenUnchecked ExportError
 
-instance Validity Err
-
-instance GenUnchecked Err
-
-instance GenValid Err
+instance GenValid ExportError

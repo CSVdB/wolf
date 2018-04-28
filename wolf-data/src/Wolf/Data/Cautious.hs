@@ -20,51 +20,51 @@ checkNotePersonRelation ::
        (MonadIO m, MonadReader DataSettings m)
     => PersonUuid
     -> NoteUuid
-    -> CautiousS m ()
+    -> CautiousExport m ()
 checkNotePersonRelation pu nu = do
     maybeNote <- lift $ readNote nu
     case maybeNote of
-        Nothing -> cautiousProblem (WarnMissingNote nu) ()
+        Nothing -> cautiousProblem (ExportWarningMissingNote nu) ()
         Just note ->
             if S.member pu $ noteRelevantPeople note
                 then pure ()
-                else cautiousProblem (WarnMissingRelevantPerson pu nu) ()
+                else cautiousProblem
+                         (ExportWarningMissingRelevantPerson pu nu)
+                         ()
 
 getPersonNoteIndexCautious ::
        (MonadIO m, MonadReader DataSettings m)
     => PersonUuid
-    -> CautiousS m (Maybe NoteIndex)
+    -> CautiousExport m (Maybe NoteIndex)
 getPersonNoteIndexCautious pu = do
     noteIndex <- lift $ getPersonNoteIndex pu
-    case noteIndex of
-        Nothing -> pure Nothing
-        Just ni -> do
-            forM_ (toList $ noteIndexSet ni) $ checkNotePersonRelation pu
-            pure $ Just ni
+    forM noteIndex $ \ni -> do
+        forM_ (toList $ noteIndexSet ni) $ checkNotePersonRelation pu
+        pure ni
 
 -- Checks whether a given person has a given note listed in its noteIndex
 checkPersonNoteRelation ::
        (MonadIO m, MonadReader DataSettings m)
     => NoteUuid
     -> PersonUuid
-    -> CautiousS m ()
+    -> CautiousExport m ()
 checkPersonNoteRelation nu pu = do
     maybePersonNoteIndex <- lift $ getPersonNoteIndex pu
     case maybePersonNoteIndex of
-        Nothing -> cautiousProblem (WarnMissingNoteIndex pu nu) ()
+        Nothing -> cautiousProblem (ExportWarningMissingNoteIndex pu nu) ()
         Just ni ->
             if S.member nu $ noteIndexSet ni
                 then pure ()
-                else cautiousProblem (WarnMissingRelevantNote nu pu) ()
+                else cautiousProblem (ExportWarningMissingRelevantNote nu pu) ()
 
 readNoteCautious ::
        (MonadIO m, MonadReader DataSettings m)
     => NoteUuid
-    -> CautiousS m (Maybe Note)
+    -> CautiousExport m (Maybe Note)
 readNoteCautious nu = do
     maybeNote <- lift $ readNote nu
     case maybeNote of
-        Nothing -> cautiousProblem (WarnMissingNote nu) Nothing
+        Nothing -> cautiousProblem (ExportWarningMissingNote nu) Nothing
         Just note -> do
             forM_ (toList $ noteRelevantPeople note) $
                 checkPersonNoteRelation nu

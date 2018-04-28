@@ -106,12 +106,12 @@ module Wolf.Data
     , exportRepo
     , importRepo
     , cleanupRepo
-    , CautiousS
-    , prettyShowWarn
-    , prettyShowErr
-    , Warn
-    , Problem(..)
-    , Err(..)
+    , CautiousExport
+    , prettyShowExportWarning
+    , prettyShowExportError
+    , ExportWarning
+    , ExportProblem(..)
+    , ExportError(..)
     , getPersonNoteIndexCautious
     ) where
 

@@ -4,15 +4,17 @@
 
 module Wolf.Data.Export.Types
     ( Repo(..)
-    , CautiousS
+    , CautiousExport
     , cautiousProblem
     , cautiousProblemM
     , cautiousProblemIfNothing
-    , prettyShowWarn
-    , prettyShowErr
-    , Warn
-    , Problem(..)
-    , Err(..)
+    , prettyShowExportWarning
+    , prettyShowExportError
+    , ExportWarning
+    , ExportProblem(..)
+    , ExportError(..)
+    , InvalidRepoMessage
+    , eitherInvalidRepoMessage
     ) where
 
 import Import
@@ -144,64 +146,87 @@ instance ToJSON Repo where
             , "suggestions" .= repoSuggestions
             ]
 
-type Warn = [Problem]
+type ExportWarning = [ExportProblem]
 
-data Problem
-    = WarnMissingNoteIndex PersonUuid
-                           NoteUuid
-    | WarnMissingNote NoteUuid
-    | WarnMissingRelevantPerson PersonUuid
-                                NoteUuid
-    | WarnMissingRelevantNote NoteUuid
-                              PersonUuid
+data ExportProblem
+    = ExportWarningMissingNoteIndex PersonUuid
+                                    NoteUuid
+    | ExportWarningMissingNote NoteUuid
+    | ExportWarningMissingRelevantPerson PersonUuid
+                                         NoteUuid
+    | ExportWarningMissingRelevantNote NoteUuid
+                                       PersonUuid
     deriving (Show, Eq, Generic)
 
-instance ToJSON Problem
+instance Validity ExportProblem
 
-instance FromJSON Problem
+instance ToJSON ExportProblem
 
-data Err =
-    NoInitFile
+instance FromJSON ExportProblem
+
+newtype InvalidRepoMessage =
+    InvalidRepoMessage String
     deriving (Show, Eq, Generic)
 
-instance ToJSON Err
+eitherInvalidRepoMessage :: Repo -> Either InvalidRepoMessage Repo
+eitherInvalidRepoMessage repo =
+    case prettyValidation repo of
+        Left errMess -> Left $ InvalidRepoMessage errMess
+        Right r -> Right r
 
-instance FromJSON Err
+instance Validity InvalidRepoMessage
 
-type CautiousS = CautiousT Warn Err
+instance ToJSON InvalidRepoMessage
 
-cautiousProblem :: Monad m => Problem -> a -> CautiousS m a
-cautiousProblem p = cautiousWarning [p]
+instance FromJSON InvalidRepoMessage
+
+data ExportError
+    = NoInitFile
+    | ExportErrorRepoInvalid InvalidRepoMessage
+    deriving (Show, Eq, Generic)
+
+instance Validity ExportError
+
+instance ToJSON ExportError
+
+instance FromJSON ExportError
+
+type CautiousExport = CautiousT ExportWarning ExportError
+
+cautiousProblem :: Monad m => ExportProblem -> a -> CautiousExport m a
+cautiousProblem = cautiousWarning . pure
 
 cautiousProblemIfNothing ::
-       Monad m => Problem -> Maybe a -> CautiousS m (Maybe a)
-cautiousProblemIfNothing p = cautiousWarningIfNothing [p]
+       Monad m => ExportProblem -> Maybe a -> CautiousExport m (Maybe a)
+cautiousProblemIfNothing = cautiousWarningIfNothing . pure
 
-cautiousProblemM :: Monad m => Problem -> m a -> CautiousS m a
-cautiousProblemM p = cautiousWarningM [p]
+cautiousProblemM :: Monad m => ExportProblem -> m a -> CautiousExport m a
+cautiousProblemM = cautiousWarningM . pure
 
-prettyShowErr :: Err -> String
-prettyShowErr NoInitFile =
+prettyShowExportError :: ExportError -> String
+prettyShowExportError NoInitFile =
     "Error: the wolf repository is not or poorly initialised."
+prettyShowExportError (ExportErrorRepoInvalid (InvalidRepoMessage err)) = err
 
-prettyShowProblem :: Problem -> String
-prettyShowProblem (WarnMissingNoteIndex pu nu) =
+prettyShowExportProblem :: ExportProblem -> String
+prettyShowExportProblem (ExportWarningMissingNoteIndex pu nu) =
     mconcat
-        [ "Warning: "
+        [ "ExportWarninging: "
         , show pu
         , " has no NoteIndex, but needs to have one since note "
         , show nu
         , " mentions him/her."
         ]
-prettyShowProblem (WarnMissingNote nu) =
-    "Warning: " ++ show nu ++ " has no note."
-prettyShowProblem (WarnMissingRelevantPerson pu nu) =
-    "Warning: The note " ++
+prettyShowExportProblem (ExportWarningMissingNote nu) =
+    "ExportWarninging: " ++ show nu ++ " has no note."
+prettyShowExportProblem (ExportWarningMissingRelevantPerson pu nu) =
+    "ExportWarninging: The note " ++
     show nu ++ " does not mention the person " ++ show pu ++ "."
-prettyShowProblem (WarnMissingRelevantNote nu pu) =
-    "Warning: The person " ++
-    show pu ++ " does not mention the note " ++ show nu ++ " in his noteIndex."
+prettyShowExportProblem (ExportWarningMissingRelevantNote nu pu) =
+    "ExportWarninging: The person " ++
+    show pu ++
+    " does not mention the note " ++ show nu ++ " in their noteIndex."
 
-prettyShowWarn :: Warn -> String
-prettyShowWarn [] = "Everything succeeded!"
-prettyShowWarn xs = intercalate "\n" $ prettyShowProblem <$> xs
+prettyShowExportWarning :: ExportWarning -> String
+prettyShowExportWarning [] = "Everything succeeded!"
+prettyShowExportWarning xs = intercalate "\n" $ prettyShowExportProblem <$> xs

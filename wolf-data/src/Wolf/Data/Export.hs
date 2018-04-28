@@ -5,12 +5,12 @@ module Wolf.Data.Export
     , repoInitData
     , repoPersonIndex
     , exportRepo
-    , CautiousS
-    , prettyShowWarn
-    , prettyShowErr
-    , Warn
-    , Problem(..)
-    , Err(..)
+    , CautiousExport
+    , prettyShowExportWarning
+    , prettyShowExportError
+    , ExportWarning
+    , ExportProblem(..)
+    , ExportError(..)
     ) where
 
 import Import
@@ -28,7 +28,7 @@ import Wolf.Data.Types
 
 import Cautious.CautiousT
 
-exportRepo :: (MonadIO m, MonadReader DataSettings m) => CautiousS m Repo
+exportRepo :: (MonadIO m, MonadReader DataSettings m) => CautiousExport m Repo
 exportRepo = do
     mid <- lift readInitData
     initData <- cautiousErrorIfNothing mid NoInitFile
@@ -40,16 +40,19 @@ exportRepo = do
     noteUuids <- lift getNoteUuids
     notes <- getMapCautious readNoteCautious noteUuids
     sugs <- lift readAllSuggestions
-    pure
-        Repo
-        { repoInitData = initData
-        , repoPersonIndex = mi
-        , repoPersonEntries = entries
-        , repoNoteIndex = noteIndex
-        , repoNoteIndices = mNoteIxs
-        , repoNotes = notes
-        , repoSuggestions = sugs
-        }
+    let uncheckedRepo =
+            Repo
+            { repoInitData = initData
+            , repoPersonIndex = mi
+            , repoPersonEntries = entries
+            , repoNoteIndex = noteIndex
+            , repoNoteIndices = mNoteIxs
+            , repoNotes = notes
+            , repoSuggestions = sugs
+            }
+    case eitherInvalidRepoMessage uncheckedRepo of
+        Left err -> cautiousError $ ExportErrorRepoInvalid err
+        Right repo -> pure repo
   where
     mKeyed :: (Ord a, Monad m) => (a -> m (Maybe b)) -> [a] -> m (Map a b)
     mKeyed func ls =
@@ -57,9 +60,9 @@ exportRepo = do
         mapM (\p -> (,) p <$> func p) ls
     getMapCautious ::
            (Ord a, Monad m)
-        => (a -> CautiousS m (Maybe b))
+        => (a -> CautiousExport m (Maybe b))
         -> [a]
-        -> CautiousS m (Map a b)
+        -> CautiousExport m (Map a b)
     getMapCautious func ls =
         M.fromList . catMaybes . fmap sequence <$>
         traverse (\a -> (,) a <$> func a) ls

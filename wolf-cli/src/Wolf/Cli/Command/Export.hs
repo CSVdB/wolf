@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Wolf.Cli.Command.Export
     ( export
@@ -21,4 +22,12 @@ export =
     runData $
     withInitCheck_ $ do
         e <- runCautiousT exportRepo
-        liftIO . LB8.putStrLn $ encodePretty e
+        liftIO $
+            case e of
+                CautiousWarning [] repo -> LB8.putStrLn $ encodePretty repo
+                CautiousWarning w repo -> do
+                    LB8.putStrLn $ encodePretty repo
+                    putStrLn $
+                        "The warnings are:\n" ++ prettyShowExportWarning w
+                CautiousError e ->
+                    putStrLn $ "The errors are\n" ++ prettyShowExportError e

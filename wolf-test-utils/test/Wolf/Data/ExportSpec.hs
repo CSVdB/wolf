@@ -11,7 +11,6 @@ import Wolf.Data.Gen ()
 
 import Wolf.Data.TestUtils
 
-import Cautious.Cautious
 import Cautious.CautiousT
 
 spec :: Spec

@@ -14,7 +14,6 @@ import Wolf.Data
 
 import Wolf.Data.Gen ()
 
-import Cautious.Cautious
 import Cautious.CautiousT
 
 runData :: Monad m => DataSettings -> ReaderT DataSettings m a -> m a
@@ -39,7 +38,7 @@ assertRepoValid :: DataSettings -> IO ()
 assertRepoValid sets = do
     mr <- runData sets $ runCautiousT exportRepo
     case mr of
-        CautiousError r -> expectationFailure $ prettyShowErr r
+        CautiousError r -> expectationFailure $ prettyShowExportError r
         CautiousWarning w _ -> w `shouldBe` mempty
 
 forAllSets :: Testable t => (DataSettings -> t) -> Gen DataSettings -> Property

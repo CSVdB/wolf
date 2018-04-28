@@ -23,9 +23,9 @@ import Wolf.Cli.Command.Suggestion.Internal
        (renderEntrySuggestion, renderSuggestion)
 import Wolf.Cli.Editor
 import Wolf.Cli.OptParse.Types
+import Wolf.Cli.Prompt
 import Wolf.Cli.Report
 import Wolf.Cli.Utils
-import Wolf.Data.Prompt
 
 reviewSuggestion :: (MonadIO m, MonadReader Settings m) => m ()
 reviewSuggestion =
