@@ -28,6 +28,18 @@ import Wolf.Data.Types
 
 import Cautious.CautiousT
 
+getNoteMap :: MonadIO m => [NoteUuid] -> m (Map NoteUuid Note)
+getNoteMap = undefined
+
+getPeopleMap :: MonadIO m => [PersonUuid] -> m (Map PersonUuid NoteIndex)
+getPeopleMap = undefined
+
+stuff ::
+       Result ~ (Map NoteUuid Note, Map PersonUuid NoteIndex)
+    => Result
+    -> CautiousExport m Result
+stuff = undefined
+
 exportRepo :: (MonadIO m, MonadReader DataSettings m) => CautiousExport m Repo
 exportRepo = do
     mid <- lift readInitData
@@ -36,20 +48,21 @@ exportRepo = do
     people <- lift getPersonUuids -- These are collected from the people directory
     entries <- lift $ mKeyed getPersonEntry people
     noteIndex <- lift getNoteIndex
-    mNoteIxs <- getMapCautious getPersonNoteIndexCautious people
     noteUuids <- lift getNoteUuids
-    notes <- getMapCautious readNoteCautious noteUuids
+    unsafeNoteMap <- getNoteMap noteUuids
+    unsafePersonmap <- getPersonMap people
+    let (mNoteIxs, notes) = stuff (unsafeNoteMap, people)
     sugs <- lift readAllSuggestions
     let uncheckedRepo =
             Repo
-            { repoInitData = initData
-            , repoPersonIndex = mi
-            , repoPersonEntries = entries
-            , repoNoteIndex = noteIndex
-            , repoNoteIndices = mNoteIxs
-            , repoNotes = notes
-            , repoSuggestions = sugs
-            }
+                { repoInitData = initData
+                , repoPersonIndex = mi
+                , repoPersonEntries = entries
+                , repoNoteIndex = noteIndex
+                , repoNoteIndices = mNoteIxs
+                , repoNotes = notes
+                , repoSuggestions = sugs
+                }
     case eitherInvalidRepoMessage uncheckedRepo of
         Left err -> cautiousError $ ExportErrorRepoInvalid err
         Right repo -> pure repo
