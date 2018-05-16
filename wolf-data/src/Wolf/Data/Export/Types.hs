@@ -211,19 +211,19 @@ prettyShowExportError (ExportErrorRepoInvalid (InvalidRepoMessage err)) = err
 prettyShowExportProblem :: ExportProblem -> String
 prettyShowExportProblem (ExportWarningMissingNoteIndex pu nu) =
     mconcat
-        [ "ExportWarninging: "
+        [ "ExportWarning: "
         , show pu
         , " has no NoteIndex, but needs to have one since note "
         , show nu
         , " mentions him/her."
         ]
 prettyShowExportProblem (ExportWarningMissingNote nu) =
-    "ExportWarninging: " ++ show nu ++ " has no note."
+    "ExportWarning: " ++ show nu ++ " has no note."
 prettyShowExportProblem (ExportWarningMissingRelevantPerson pu nu) =
-    "ExportWarninging: The note " ++
+    "ExportWarning: The note " ++
     show nu ++ " does not mention the person " ++ show pu ++ "."
 prettyShowExportProblem (ExportWarningMissingRelevantNote nu pu) =
-    "ExportWarninging: The person " ++
+    "ExportWarning: The person " ++
     show pu ++
     " does not mention the note " ++ show nu ++ " in their noteIndex."
 

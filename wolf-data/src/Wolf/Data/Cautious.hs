@@ -1,71 +1,108 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Wolf.Data.Cautious
-    ( getPersonNoteIndexCautious
-    , readNoteCautious
+    ( NotesAndPeople(..)
+    , ExportNP
+    , checkNote
+    , checkPerson
+    , NAPState
     ) where
 
 import Import
 
+import qualified Data.Map as M
 import qualified Data.Set as S
+
+import Control.Monad.State.Strict
 
 import Wolf.Data.Export.Types
 import Wolf.Data.Note
 import Wolf.Data.NoteIndex
+import Wolf.Data.NoteIndex.Types
 import Wolf.Data.People
-import Wolf.Data.Types
 
--- Checks whether a given note mentions a given person as 'relevant'
-checkNotePersonRelation ::
-       (MonadIO m, MonadReader DataSettings m)
-    => PersonUuid
-    -> NoteUuid
-    -> CautiousExport m ()
-checkNotePersonRelation pu nu = do
-    maybeNote <- lift $ readNote nu
-    case maybeNote of
-        Nothing -> cautiousProblem (ExportWarningMissingNote nu) ()
+type NAPState m = StateT NotesAndPeople (CautiousExport m) ()
+
+data NotesAndPeople = NotesAndPeople
+    { notes :: Map NoteUuid Note
+    , people :: Map PersonUuid NoteIndex
+    } deriving (Show, Eq)
+
+type ExportNP m = CautiousExport m (Map NoteUuid Note, Map PersonUuid NoteIndex)
+
+checkNote :: Monad m => NoteUuid -> NAPState m
+checkNote nu = do
+    NotesAndPeople {..} <- get
+    case M.lookup nu notes of
+        Nothing -> pure ()
+        Just note ->
+            forM_ (noteRelevantPeople note) $ \pu -> checkPersonNote pu nu
+
+checkPerson :: Monad m => PersonUuid -> NAPState m
+checkPerson pu = do
+    NotesAndPeople {..} <- get
+    case M.lookup pu people of
+        Nothing -> pure ()
+        Just ni -> forM_ (noteIndexSet ni) $ \nu -> checkNotePerson nu pu
+
+checkPersonNote :: Monad m => PersonUuid -> NoteUuid -> NAPState m
+checkPersonNote pu nu = do
+    NotesAndPeople {..} <- get
+    case M.lookup nu notes of
+        Nothing -> rmNuFromPerson nu pu
         Just note ->
             if S.member pu $ noteRelevantPeople note
                 then pure ()
-                else cautiousProblem
-                         (ExportWarningMissingRelevantPerson pu nu)
-                         ()
+                else addPersonUuidRef pu nu
 
-getPersonNoteIndexCautious ::
-       (MonadIO m, MonadReader DataSettings m)
-    => PersonUuid
-    -> CautiousExport m (Maybe NoteIndex)
-getPersonNoteIndexCautious pu = do
-    noteIndex <- lift $ getPersonNoteIndex pu
-    forM noteIndex $ \ni -> do
-        forM_ (toList $ noteIndexSet ni) $ checkNotePersonRelation pu
-        pure ni
-
--- Checks whether a given person has a given note listed in its noteIndex
-checkPersonNoteRelation ::
-       (MonadIO m, MonadReader DataSettings m)
-    => NoteUuid
-    -> PersonUuid
-    -> CautiousExport m ()
-checkPersonNoteRelation nu pu = do
-    maybePersonNoteIndex <- lift $ getPersonNoteIndex pu
-    case maybePersonNoteIndex of
-        Nothing -> cautiousProblem (ExportWarningMissingNoteIndex pu nu) ()
+checkNotePerson :: Monad m => NoteUuid -> PersonUuid -> NAPState m
+checkNotePerson nu pu = do
+    NotesAndPeople {..} <- get
+    case M.lookup pu people of
+        Nothing -> rmPuFromNote pu nu
         Just ni ->
             if S.member nu $ noteIndexSet ni
                 then pure ()
-                else cautiousProblem (ExportWarningMissingRelevantNote nu pu) ()
+                else addNoteUuidRef nu pu
 
-readNoteCautious ::
-       (MonadIO m, MonadReader DataSettings m)
-    => NoteUuid
-    -> CautiousExport m (Maybe Note)
-readNoteCautious nu = do
-    maybeNote <- lift $ readNote nu
-    case maybeNote of
-        Nothing -> cautiousProblem (ExportWarningMissingNote nu) Nothing
-        Just note -> do
-            forM_ (toList $ noteRelevantPeople note) $
-                checkPersonNoteRelation nu
-            pure $ Just note
+rmPuFromNote :: Monad m => PersonUuid -> NoteUuid -> NAPState m
+rmPuFromNote pu nu = do
+    lift $ cautiousProblem (ExportWarningMissingNote nu) ()
+    state $ \x@NotesAndPeople {..} ->
+        ((), x {notes = M.update (rmPuFromNoteRp pu) nu notes})
+  where
+    rmPuFromNoteRp pu' note =
+        Just $
+        note {noteRelevantPeople = S.delete pu' $ noteRelevantPeople note}
+
+rmNuFromPerson :: Monad m => NoteUuid -> PersonUuid -> NAPState m
+rmNuFromPerson nu pu = do
+    lift $ cautiousProblem (ExportWarningMissingRelevantNote nu pu) ()
+    state $ \x@NotesAndPeople {..} ->
+        ((), x {people = M.update (rmNuFromNi nu) pu people})
+  where
+    rmNuFromNi nu' (NoteIndex nis) = Just . NoteIndex $ S.delete nu' nis
+
+addPersonUuidRef :: Monad m => PersonUuid -> NoteUuid -> NAPState m
+addPersonUuidRef pu nu = do
+    lift $ cautiousProblem (ExportWarningMissingRelevantPerson pu nu) ()
+    state $ \x@NotesAndPeople {..} ->
+        ((), x {notes = M.update (addPersonUuidToNote pu) nu notes})
+  where
+    addPersonUuidToNote pu' note =
+        Just $
+        note {noteRelevantPeople = S.insert pu' $ noteRelevantPeople note}
+
+addNoteUuidRef :: (Monad m) => NoteUuid -> PersonUuid -> NAPState m
+addNoteUuidRef nu pu = do
+    lift $ cautiousProblem (ExportWarningMissingRelevantNote nu pu) ()
+    state $ \x@NotesAndPeople {..} ->
+        ( ()
+        , x
+          { people =
+                M.update
+                    (Just . NoteIndex . S.insert nu . noteIndexSet)
+                    pu
+                    people
+          })

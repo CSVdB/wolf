@@ -15,12 +15,16 @@ module Wolf.Data.Export
 
 import Import
 
+import Data.Map (Map)
 import qualified Data.Map as M
+
+import Control.Monad.State.Strict
 
 import Wolf.Data.Cautious
 import Wolf.Data.Export.Types
 import Wolf.Data.Index
 import Wolf.Data.Init
+import Wolf.Data.Note
 import Wolf.Data.NoteIndex
 import Wolf.Data.People
 import Wolf.Data.Suggestion
@@ -28,30 +32,45 @@ import Wolf.Data.Types
 
 import Cautious.CautiousT
 
-getNoteMap :: MonadIO m => [NoteUuid] -> m (Map NoteUuid Note)
-getNoteMap = undefined
+getNoteMap ::
+       (MonadIO m, MonadReader DataSettings m)
+    => [NoteUuid]
+    -> m (Map NoteUuid Note)
+getNoteMap nus =
+    fmap (M.fromList . catMaybes) $
+    forM nus $ \nu -> do
+        note <- readNote nu
+        pure $ (,) nu <$> note
 
-getPeopleMap :: MonadIO m => [PersonUuid] -> m (Map PersonUuid NoteIndex)
-getPeopleMap = undefined
+getPeopleMap ::
+       (MonadIO m, MonadReader DataSettings m)
+    => [PersonUuid]
+    -> m (Map PersonUuid NoteIndex)
+getPeopleMap pus =
+    fmap (M.fromList . catMaybes) $
+    forM pus $ \pu -> do
+        mNoteIndex <- getPersonNoteIndex pu
+        pure $ (,) pu <$> mNoteIndex
 
-stuff ::
-       Result ~ (Map NoteUuid Note, Map PersonUuid NoteIndex)
-    => Result
-    -> CautiousExport m Result
-stuff = undefined
+checkNotesAndPeople :: Monad m => NAPState m
+checkNotesAndPeople = do
+    mapM_ checkNote . M.keys . notes =<< get
+    mapM_ checkPerson . M.keys . people =<< get
 
 exportRepo :: (MonadIO m, MonadReader DataSettings m) => CautiousExport m Repo
 exportRepo = do
     mid <- lift readInitData
     initData <- cautiousErrorIfNothing mid NoInitFile
     mi <- lift getIndexWithDefault
-    people <- lift getPersonUuids -- These are collected from the people directory
-    entries <- lift $ mKeyed getPersonEntry people
+    pus <- lift getPersonUuids -- These are collected from the people directory
+    entries <- lift $ mKeyed getPersonEntry pus
     noteIndex <- lift getNoteIndex
     noteUuids <- lift getNoteUuids
-    unsafeNoteMap <- getNoteMap noteUuids
-    unsafePersonmap <- getPersonMap people
-    let (mNoteIxs, notes) = stuff (unsafeNoteMap, people)
+    unsafeNoteMap <- lift $ getNoteMap noteUuids
+    unsafePersonMap <- lift $ getPeopleMap pus
+    NotesAndPeople noteMap mNoteIxs <-
+        execStateT checkNotesAndPeople $
+        NotesAndPeople unsafeNoteMap unsafePersonMap
     sugs <- lift readAllSuggestions
     let uncheckedRepo =
             Repo
@@ -60,7 +79,7 @@ exportRepo = do
                 , repoPersonEntries = entries
                 , repoNoteIndex = noteIndex
                 , repoNoteIndices = mNoteIxs
-                , repoNotes = notes
+                , repoNotes = noteMap
                 , repoSuggestions = sugs
                 }
     case eitherInvalidRepoMessage uncheckedRepo of
@@ -71,11 +90,3 @@ exportRepo = do
     mKeyed func ls =
         (M.fromList . mapMaybe (\(p, e) -> (,) p <$> e)) <$>
         mapM (\p -> (,) p <$> func p) ls
-    getMapCautious ::
-           (Ord a, Monad m)
-        => (a -> CautiousExport m (Maybe b))
-        -> [a]
-        -> CautiousExport m (Map a b)
-    getMapCautious func ls =
-        M.fromList . catMaybes . fmap sequence <$>
-        traverse (\a -> (,) a <$> func a) ls

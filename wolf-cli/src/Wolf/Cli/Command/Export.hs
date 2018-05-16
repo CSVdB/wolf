@@ -21,9 +21,9 @@ export :: (MonadIO m, MonadReader Settings m) => m ()
 export =
     runData $
     withInitCheck_ $ do
-        e <- runCautiousT exportRepo
+        cautiousRepository <- runCautiousT exportRepo
         liftIO $
-            case e of
+            case cautiousRepository of
                 CautiousWarning [] repo -> LB8.putStrLn $ encodePretty repo
                 CautiousWarning w repo -> do
                     LB8.putStrLn $ encodePretty repo
