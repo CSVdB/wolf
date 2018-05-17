@@ -37,17 +37,17 @@ checkNote nu = do
     case M.lookup nu notes of
         Nothing -> pure ()
         Just note ->
-            forM_ (noteRelevantPeople note) $ \pu -> checkPersonNote pu nu
+            forM_ (noteRelevantPeople note) $ \pu -> checkPersonFromNote nu pu
 
 checkPerson :: Monad m => PersonUuid -> NAPState m
 checkPerson pu = do
     NotesAndPeople {..} <- get
     case M.lookup pu people of
         Nothing -> pure ()
-        Just ni -> forM_ (noteIndexSet ni) $ \nu -> checkNotePerson nu pu
+        Just ni -> forM_ (noteIndexSet ni) $ \nu -> checkNoteFromPerson pu nu
 
-checkPersonNote :: Monad m => PersonUuid -> NoteUuid -> NAPState m
-checkPersonNote pu nu = do
+checkNoteFromPerson :: Monad m => PersonUuid -> NoteUuid -> NAPState m
+checkNoteFromPerson pu nu = do
     NotesAndPeople {..} <- get
     case M.lookup nu notes of
         Nothing -> rmNuFromPerson nu pu
@@ -56,8 +56,8 @@ checkPersonNote pu nu = do
                 then pure ()
                 else addPersonUuidRef pu nu
 
-checkNotePerson :: Monad m => NoteUuid -> PersonUuid -> NAPState m
-checkNotePerson nu pu = do
+checkPersonFromNote :: Monad m => NoteUuid -> PersonUuid -> NAPState m
+checkPersonFromNote nu pu = do
     NotesAndPeople {..} <- get
     case M.lookup pu people of
         Nothing -> rmPuFromNote pu nu
