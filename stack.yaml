@@ -23,4 +23,7 @@ extra-deps:
     - typed-uuid
     - genvalidity-typed-uuid
 
+nix:
+  packages: [ zlib ]
+
 resolver: lts-10.2

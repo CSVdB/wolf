@@ -8,6 +8,7 @@ import TestImport
 
 import Wolf.Data
 import Wolf.Data.Gen ()
+import Wolf.Data.Export.Types
 
 import Wolf.Data.TestUtils
 
@@ -43,3 +44,16 @@ spec =
         -- roundtrip repoNotes "notes"
         -- roundtrip repoSuggestions "suggestions"
         roundtrip id "entire repo"
+        it "never exports an invalid repository" $ \gen ->
+            forAllUnchecked $ \repo ->
+                forAll gen $ \sets -> do
+                    repo' <-
+                        runData sets $ do
+                            ensureClearRepository
+                            importRepo repo
+                            runCautiousT exportRepo
+                    case repo' of
+                        CautiousError e@(ExportErrorRepoInvalid _) ->
+                            expectationFailure $
+                            "Failed with the following error message:\n" ++ prettyShowExportError e
+                        _ -> pure ()
