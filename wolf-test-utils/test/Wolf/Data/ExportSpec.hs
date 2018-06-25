@@ -47,8 +47,13 @@ spec =
         it "fixes initData" $ \gen ->
             forAll gen $ \sets ->
                 uncheckedRepoTest sets $ \repo -> do
-                    uncheckedInitData <- generate genUnchecked
-                    pure repo {repoInitData = uncheckedInitData}
+                    invalidTimestamp <- generate genValid
+                    pure
+                        repo
+                            { repoInitData =
+                                  (repoInitData repo)
+                                      {initTimestamp = invalidTimestamp}
+                            }
 
 uncheckedRepoTest :: DataSettings -> (Repo -> IO Repo) -> Property
 uncheckedRepoTest sets changeRepo =
